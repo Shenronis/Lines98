@@ -15,12 +15,25 @@ public class GameManager : MonoBehaviour
     public int Score {
         set {
             score = value;
+            HUDManager.Instance.SetScore(score);
         }
 
         get {
             return score;
         }
     }
+
+    public float time;
+    public float Time {
+        set {
+            time = value;
+        }
+
+        get {
+            return score;
+        }
+    }
+
     public GameState gameState;
 
     void Start()
@@ -40,6 +53,10 @@ public class GameManager : MonoBehaviour
                 BallUnitManager.Instance.SpawnBallUnits();                
                 break;
             case GameState.PlayerTurn:
+                break;
+            case GameState.Lose:
+                GridManager.Instance.RestartAllTiles();
+                ChangeState(GameState.GenerateGrid);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(state), state, null);

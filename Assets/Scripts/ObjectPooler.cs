@@ -4,15 +4,9 @@ using System.Collections.Generic;
 using UnityEngine;
 
 public class ObjectPooler : MonoBehaviour
-{
-    #region Singleton
+{    
     public static ObjectPooler Instance {get; private set;}
-    void Awake()
-    {
-        Instance = this;
-    }
-    #endregion
-    
+
     [System.Serializable]
     public class Pool {
         public int poolSize;
@@ -21,26 +15,26 @@ public class ObjectPooler : MonoBehaviour
     }
 
     public List<Pool> pools;
+    
     public Dictionary<string, Queue<GameObject>> poolDictionary;
 
-    void Start()
+    void Awake()
     {
+        Instance = this;
         poolDictionary = new Dictionary<string, Queue<GameObject>>();
-
         foreach(Pool pool in pools)
         {
             Queue<GameObject> objectPool = new Queue<GameObject>();
             for (int i = 0; i < pool.poolSize; i++)
             {
-                GameObject obj = Instantiate(pool.prefab);
-                obj.name = pool.prefab.GetComponent<Ball>().type.ToString();
+                GameObject obj = Instantiate(pool.prefab);                
                 obj.SetActive(false);
                 objectPool.Enqueue(obj);
             }
 
             poolDictionary.Add(pool.tag, objectPool);
         }
-    }
+    }    
 
     public GameObject SpawnFromPool(string tag)
     {
@@ -57,5 +51,20 @@ public class ObjectPooler : MonoBehaviour
         {
             throw new ArgumentOutOfRangeException(nameof(tag), tag, null);
         }
-    }    
+    }
+
+    public GameObject GetFromPool(string tag)
+    {
+        if (poolDictionary.ContainsKey(tag))
+        {
+            GameObject spawnedObj = poolDictionary[tag].Dequeue();
+            poolDictionary[tag].Enqueue(spawnedObj);
+
+            return spawnedObj;
+        }
+        else
+        {
+            throw new ArgumentOutOfRangeException(nameof(tag), tag, null);
+        }
+    }
 }

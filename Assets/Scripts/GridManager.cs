@@ -16,8 +16,32 @@ public class GridManager : MonoBehaviour
     [SerializeField] private int width, height;
     [SerializeField] private Tile TilePrefab;
     [SerializeField] private Transform mainCamera;
+    [SerializeField] private LineRenderer pathVisual;
     private Dictionary<Vector2Int, Tile> cells;
     private Pathfinding pathfinder;
+    private Vector3[] path;
+
+    public void Draw(Vector2 pos)
+    {        
+        if (BallUnitManager.Instance.selectedBallUnit != null) {
+            var selectedBallUnit = BallUnitManager.Instance.selectedBallUnit;
+            var selectedTile = selectedBallUnit.OccupiedTile;
+            var hoveredTile = GetTileAtPos(pos);
+            path = pathfinder.findPath(selectedTile.transform.position, hoveredTile.transform.position);
+
+            for (int i = 0; i < path.Length-1; i++)
+            {
+                Debug.DrawLine(path[i], path[i+1], Color.red, 1f);
+            }
+
+            pathVisual.GetComponent<LineRenderController>().SetUpLine(path);
+        }
+    }
+
+    public void Erase()
+    {
+        pathVisual.GetComponent<LineRenderController>().RemoveLine();
+    }
 
     public void GenerateGrid()
     {
@@ -33,7 +57,7 @@ public class GridManager : MonoBehaviour
             }
         }
 
-        mainCamera.position = new Vector3((float)width/2 -0.5f, (float)height/2 -0.5f, -10f);      
+        mainCamera.position = new Vector3((float)width * 0.85f - 0.5f, (float)height/2 - 0.5f, -10f);      
         pathfinder = new Pathfinding(cells, width, height);
         GameManager.Instance.ChangeState(GameState.SpawnAndQueue);  
     }
@@ -49,22 +73,26 @@ public class GridManager : MonoBehaviour
         return null;
     }
 
+    public Tile GetTileAtPos(float x, float y)
+    {
+        return GetTileAtPos(new Vector2(x,y));
+    }
+
     public Tile GetRandomTilePosition()
     {        
         var tile = cells.Where(t => t.Key.x < width && t.Key.y < height  && t.Value.Spawnable).OrderBy(t => Random.value).First().Value;
-
-        // No more tile to spawn from
-        if (tile == null)
-        {
-            GameManager.Instance.ChangeState(GameState.Lose);
-        }
-
         return tile;
+    }
+
+    public int CountAvailableTiles()
+    {
+        var tile = cells.Where(t => t.Key.x < width && t.Key.y < height  && t.Value.Spawnable);
+        return tile.Count();
     }
 
     public void UpdatePathdinding()
     {
-        pathfinder.ReEvaluatePathdinding();
+        pathfinder.UpdatePathdinding();
     }
 
     public Vector3[] findPath(Vector2 start, Vector2 end)
@@ -74,7 +102,7 @@ public class GridManager : MonoBehaviour
 
     public List<Tile> checkLines(Vector2 pivot)
     {                
-        List<Tile> connectedTiles = new List<Tile>();
+        HashSet<Tile> connectedTiles = new HashSet<Tile>();
         int[] u = new int[] { 0, 1, 1, 1 };
         int[] v = new int[] { 1, 0, -1, 1 };
         int x,y,colorMatched;
@@ -137,13 +165,64 @@ public class GridManager : MonoBehaviour
         if (connectedTiles.Count > 0) connectedTiles.Add(pivotTile);
         else return null;
 
-        return connectedTiles;
+        bool minesweeper;
+        do
+        {
+            minesweeper = false;            
+            foreach(Tile tile in connectedTiles.ToList())
+            {
+                // Handle Bomb special ball unit
+                // it will explode all surrounding ball unit (by 3x3 matrix)
+                // we need to find all the neighbors 
+                // and exclude ones we already set for explode
+                if (tile.OccupiedBallUnit.specialType == SpecialUnit.Bomb)
+                {
+                    var position =  tile.transform.position;
+                    List<Tile> neighbors = new List<Tile>();
+                
+                    #region Find Neighbors
+                    for (int xx = -1; xx <= 1; xx++)
+                    {
+                        for (int yy = -1; yy <= 1; yy++)
+                        {
+                            if (xx==0 && yy==0) continue;
+
+                            if (IsValidPosition(Mathf.RoundToInt(position.x) + xx, Mathf.RoundToInt(position.y) + yy))
+                            {
+                                var neighborTile = GetTileAtPos(position.x + xx, position.y + yy);
+
+                                if (connectedTiles.Contains(neighborTile)) continue;
+
+                                if (neighborTile.OccupiedBallUnit != null)
+                                {
+                                    if (neighborTile.OccupiedBallUnit.specialType == SpecialUnit.Bomb) {minesweeper=true;}
+                                    neighbors.Add(neighborTile);
+                                }
+                            }
+                        }
+                    }
+                    #endregion
+                                    
+                    connectedTiles.UnionWith(neighbors);
+                }
+            }
+        } while (minesweeper);
+
+        return connectedTiles.ToList();
     }
 
-    private bool IsValidPosition(int x, int y)
+    public bool IsValidPosition(int x, int y)
     {
         if (x < 0 || y < 0) return false;
         if (x >= width || y >= height) return false;
         return true;
+    }
+
+    public void RestartAllTiles()
+    {
+        foreach(KeyValuePair<Vector2Int, Tile> cell in cells)
+        {
+            cell.Value.RestartTile();
+        }
     }
 }

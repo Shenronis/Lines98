@@ -57,7 +57,7 @@ public class Pathfinding
         return grid.Find(t => t.Item1.position == searchPos).Item1;
     }
 
-    public void ReEvaluatePathdinding()
+    public void UpdatePathdinding()
     {
         foreach(var tuple in grid)
         {            
@@ -97,14 +97,20 @@ public class Pathfinding
         Queue<PathNode> frontier = new Queue<PathNode>();        
 
         PathNode Start=null, End=null;
+        bool isGhostBall = false;
 
         foreach(var tuple in grid)
         {            
             var position = tuple.Item1;
             tuple.Item1.prev = null;
 
-            if (position.x == start.x && position.y == start.y) { Start = tuple.Item1; }
-            else if (position.x == end.x && position.y == end.y) { End = tuple.Item1; }
+            if (position.x == start.x && position.y == start.y) { 
+                Start = tuple.Item1;
+                isGhostBall = (tuple.Item2.OccupiedBallUnit.specialType == SpecialUnit.Ghost);
+            }
+            else if (position.x == end.x && position.y == end.y) {
+                End = tuple.Item1; 
+            }
         }      
 
         if (!IsValidPath(Start, End)) {return null;}
@@ -120,7 +126,7 @@ public class Pathfinding
 
             foreach(var neighbor in current.neighbors)
             {                
-                if (!visited.Contains(neighbor) && neighbor.isWalkable)
+                if (!visited.Contains(neighbor) && (neighbor.isWalkable || isGhostBall))
                 {
                     visited.Add(neighbor);
                     frontier.Enqueue(neighbor);
