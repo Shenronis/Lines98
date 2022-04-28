@@ -22,7 +22,7 @@ public class GridManager : MonoBehaviour
     private Vector3[] path;
 
     public void Draw(Vector2 pos)
-    {        
+    {
         if (BallUnitManager.Instance.selectedBallUnit != null) {
             var selectedBallUnit = BallUnitManager.Instance.selectedBallUnit;
             var selectedTile = selectedBallUnit.OccupiedTile;
@@ -43,6 +43,11 @@ public class GridManager : MonoBehaviour
         pathVisual.GetComponent<LineRenderController>().RemoveLine();
     }
 
+    public Dictionary<Vector2Int, Tile> GetGrid()
+    {
+        return cells;
+    }
+
     public void GenerateGrid()
     {
         cells = new Dictionary<Vector2Int, Tile>();
@@ -57,7 +62,9 @@ public class GridManager : MonoBehaviour
             }
         }
 
-        mainCamera.position = new Vector3((float)width * 0.85f - 0.5f, (float)height/2 - 0.5f, -10f);      
+        mainCamera.position = new Vector3((float)width * 0.85f - 0.5f, (float)height/2 - 0.5f, -10f);        
+        CameraShake.Instance.SetCameraOrigin(mainCamera.position);
+
         pathfinder = new Pathfinding(cells, width, height);
         GameManager.Instance.ChangeState(GameState.SpawnAndQueue);  
     }
@@ -123,8 +130,7 @@ public class GridManager : MonoBehaviour
                 if (!IsValidPosition(x,y)) break;
 
                 var tile = GetTileAtPos(new Vector2(x, y));
-                if (tile.OccupiedBallUnit == null) break;                
-                if (pivotTile.OccupiedBallUnit.Type != tile.OccupiedBallUnit.Type) break;
+                if (!IsValidTile(pivotTile, tile)) break;
 
                 colorMatched++;
             }
@@ -139,8 +145,7 @@ public class GridManager : MonoBehaviour
                 if (!IsValidPosition(x,y)) break;
 
                 var tile = GetTileAtPos(new Vector2(x, y));
-                if (tile.OccupiedBallUnit == null) break;                
-                if (pivotTile.OccupiedBallUnit.Type != tile.OccupiedBallUnit.Type) break;
+                if (!IsValidTile(pivotTile, tile)) break;
 
                 colorMatched++;
             }
@@ -158,7 +163,7 @@ public class GridManager : MonoBehaviour
                     {
                         connectedTiles.Add(GetTileAtPos(new Vector2(x,y)));
                     }
-                }                
+                }
             }
         }
     
@@ -211,6 +216,18 @@ public class GridManager : MonoBehaviour
         return connectedTiles.ToList();
     }
 
+    private bool IsValidTile(Tile pivotTile, Tile tile)
+    {
+        if (tile.OccupiedBallUnit == null) return false;
+
+        // Crate can only be destroyed by bomb
+        if (tile.OccupiedBallUnit.specialType == SpecialUnit.Crate) return false;
+
+        if (pivotTile.OccupiedBallUnit.Type != tile.OccupiedBallUnit.Type) return false;
+
+        return true;
+    }
+
     public bool IsValidPosition(int x, int y)
     {
         if (x < 0 || y < 0) return false;
@@ -222,7 +239,42 @@ public class GridManager : MonoBehaviour
     {
         foreach(KeyValuePair<Vector2Int, Tile> cell in cells)
         {
-            cell.Value.RestartTile();
+            cell.Value.RefreshTile();
         }
+    }
+
+
+
+    // a fun hidden input
+    private KeyCode[] nukeSequence = new KeyCode[]
+    {
+        KeyCode.UpArrow,
+        KeyCode.UpArrow,
+        KeyCode.DownArrow,
+        KeyCode.DownArrow,
+        KeyCode.LeftArrow,
+        KeyCode.RightArrow,
+        KeyCode.LeftArrow,
+        KeyCode.RightArrow,
+    };
+    private int sequenceIndex;
+    
+    private void Update() {
+        if (Input.GetKeyDown(nukeSequence[sequenceIndex])) {
+            if (++sequenceIndex == nukeSequence.Length){
+                sequenceIndex = 0;
+                TACTICALNUKE();
+            }
+        } else if (Input.anyKeyDown) sequenceIndex = 0;
+    }
+
+    public void TACTICALNUKE()
+    {
+        foreach(KeyValuePair<Vector2Int, Tile> cell in cells)
+        {
+            cell.Value.SelfDestruct();
+        }
+
+        SoundEffectPlayer.Instance.Play(SFX.explosion);
     }
 }

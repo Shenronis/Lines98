@@ -5,7 +5,8 @@ using TMPro;
 
 public class Timer : MonoBehaviour
 {
-    private float timer;
+    public static Timer Instance {get; private set;}
+    private float timer;    
 
     [SerializeField] 
     private TextMeshProUGUI firstMinute;
@@ -20,6 +21,7 @@ public class Timer : MonoBehaviour
 
     void Awake()
     {
+        Instance = this;
         timer = 0;
         SetTextDisplay(true);
     }
@@ -29,6 +31,11 @@ public class Timer : MonoBehaviour
         timer += Time.deltaTime;
         GameManager.Instance.Time = timer;
         UpdateTimerDisplay(timer);
+    }
+
+    public void SetTime(float time)
+    {
+        if (time >= 0) timer = time;
     }
 
     private void UpdateTimerDisplay(float time) {

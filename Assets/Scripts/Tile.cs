@@ -9,15 +9,26 @@ public class Tile : MonoBehaviour
     [SerializeField] private GameObject hightlightMask;
     public Ball OccupiedBallUnit;
     public Ball queuedBallIndicator;
-    public bool Walkable => OccupiedBallUnit == null;
+    public bool Walkable  => OccupiedBallUnit == null;
     public bool Spawnable => queuedBallIndicator == null && OccupiedBallUnit == null;
-    public bool isSelected;
+    public bool isSelected;    
     private Vector3[] pathVectorArray;
     private Sequence floatingSeq;
-    private Tween scaleTween;
+    private BoxCollider2D boxCollider;
+
+    void Start()
+    {
+        boxCollider = GetComponent<BoxCollider2D>();
+    }
+
+    void Update()
+    {
+        if (PauseMenu.isPaused) boxCollider.enabled = false;
+        else boxCollider.enabled = true;
+    }
 
     void OnMouseEnter()
-    {                
+    {
         if (GameManager.Instance.gameState == GameState.PlayerTurn) {
 
             if (!OccupiedBallUnit) GridManager.Instance.Draw(this.transform.position);
@@ -32,12 +43,12 @@ public class Tile : MonoBehaviour
         if (GameManager.Instance.gameState == GameState.PlayerTurn) ClearHighlight();        
     }
 
-    void SetHighlight()
+    public void SetHighlight()
     {        
         hightlightMask.SetActive(true);
     }
 
-    void ClearHighlight()
+    public void ClearHighlight()
     {        
         if (isSelected) return;
         hightlightMask.SetActive(false);
@@ -54,37 +65,55 @@ public class Tile : MonoBehaviour
         // If selected cell have a ball unit
         if (OccupiedBallUnit != null)
         {
-            // If there was a previous selection of a ball unit
-            // then remove selected indicator
-            if (BallUnitManager.Instance.selectedBallUnit && BallUnitManager.Instance.selectedBallUnit.OccupiedTile != this) {                
+            // Swap selection if there was a previous selection of a ball unit            
+            if (BallUnitManager.Instance.selectedBallUnit ) {
+
+                // Remove selected logic & indicator
                 var ballUnit = BallUnitManager.Instance.selectedBallUnit;
                 ballUnit.OccupiedTile.isSelected = false;
                 ballUnit.OccupiedTile.ClearHighlight();
                 ballUnit.OccupiedTile.StopFloatSelected();
+
+                /*
+                    But if the previous selection was this one too!?
+                    we deselect selection and cancel swap
+                */
+                if (ballUnit == this.OccupiedBallUnit) {
+                    BallUnitManager.Instance.selectedBallUnit = null;
+                    return;
+                };
             }
             
+            // Set new current selected
             BallUnitManager.Instance.selectedBallUnit = OccupiedBallUnit;
             isSelected = true;
-            SetHighlight();
+            SetHighlight();            
             FloatSelected();
         }
         else // Else if no ball unit at the selection
         {
-            // But then if we're currently having a selected ball unit
-            // we check path and move it
+            /*
+                But if we're currently selected a ball unit
+                we check path and move it
+            */
             if (BallUnitManager.Instance.selectedBallUnit)
             {                                                
                 var selectedUnit = BallUnitManager.Instance.selectedBallUnit;
                 var selectedTile = selectedUnit.OccupiedTile;
                 var destination = this.transform.position;
-                selectedTile.StopFloatSelected();
+                selectedTile.StopFloatSelected(); // stop flying around and get moving
 
+                // Pathfind algo returns a Vector3[]
                 pathVectorArray = GridManager.Instance.findPath(selectedTile.transform.position, destination);
 
-                // If found path
+                /*
+                    If found path
+                    true => move
+                    false => remove selected logic & indicator
+                */
                 if (pathVectorArray!=null && pathVectorArray.Length > 1)
                 {                
-                    //Remove start position
+                    //Remove starting position
                     pathVectorArray = pathVectorArray.Skip(1).ToArray();
 
                     //Debug                    
@@ -97,7 +126,7 @@ public class Tile : MonoBehaviour
                     // Move the ball!
                     SetBallUnitPosition(selectedUnit, shouldAnimate:true);
 
-                    // Don't forget SFX
+                    // Don't forget the SFX(s)
                     if (selectedUnit.specialType == SpecialUnit.Ghost) SoundEffectPlayer.Instance.Play(SFX.ghost);
                     if (selectedUnit.specialType == SpecialUnit.Bomb) SoundEffectPlayer.Instance.Play(SFX.bomb);
                     SoundEffectPlayer.Instance.Play(SFX.move);
@@ -109,11 +138,13 @@ public class Tile : MonoBehaviour
                     ballUnit.OccupiedTile.ClearHighlight();  
                 }                
             }
+
+            //Deselect
             BallUnitManager.Instance.selectedBallUnit = null;        
         }   
     }
 
-    void FloatSelected()
+    public void FloatSelected()
     {
         if (floatingSeq !=null && floatingSeq.IsPlaying()) return;
 
@@ -121,11 +152,11 @@ public class Tile : MonoBehaviour
         floatingSeq.SetAutoKill(false);
         floatingSeq.Append(OccupiedBallUnit.transform.DOBlendableMoveBy(new Vector3(0,0.2f), 0.5f))
             .Append(OccupiedBallUnit.transform.DOBlendableLocalMoveBy(new Vector3(0,-0.2f), 0.5f))
-            .AppendInterval(0.5f)
+            .AppendInterval(0.1f)
             .OnComplete(()=>{floatingSeq.Restart();});
     }
 
-    void StopFloatSelected()
+    public void StopFloatSelected()
     {
         if (floatingSeq != null && floatingSeq.IsPlaying())
         {
@@ -151,10 +182,57 @@ public class Tile : MonoBehaviour
         //debug
 
         if (shouldAnimate)
-        {
+        {            
             ballUnit.transform.DOPath(pathVectorArray, 0.5f)
+                .OnWaypointChange((int waypoint) => {
+                    /*
+                        Track Pacman's path and Ghost for
+                        their special abilities
+                    */
+                    if (ballUnit.specialType == SpecialUnit.Pacman)
+                    {                        
+                        var pos = ballUnit.transform.position;
+                        var effectedTile = GridManager.Instance.GetTileAtPos(pos);
+
+                        if (effectedTile.OccupiedBallUnit != null && effectedTile.OccupiedBallUnit != ballUnit) {
+                            var explodeFX = ObjectPooler.Instance.GetFromPool("Explosion");
+                            explodeFX.transform.position = effectedTile.transform.position;
+                            
+                            var FXmain = explodeFX.GetComponent<ParticleSystem>().main;
+                            FXmain.startColor = effectedTile.OccupiedBallUnit.GetSpriteColor();
+
+                            explodeFX.gameObject.SetActive(true);
+
+                            SoundEffectPlayer.Instance.Play(SFX.pop);
+
+                            effectedTile.RemoveBall();
+                        }
+                    }
+                    else if (ballUnit.specialType == SpecialUnit.Ghost)
+                    {
+                        var pos = ballUnit.transform.position;
+                        var effectedTile = GridManager.Instance.GetTileAtPos(pos);
+                        var unit = effectedTile.OccupiedBallUnit;
+
+                        // How long should the cardbox be revealed by Ghost?
+                        float revealDuration = 3.0f;
+
+                        if (unit != null && unit != ballUnit) {
+                            // Solid Snake?
+                            if (unit.specialType == SpecialUnit.Cardbox) {
+                                var unitMask = unit.GetMask();
+                                if (unitMask.color.a != 1f) return;
+
+                                Sequence fadeSequence = DOTween.Sequence();
+                                fadeSequence.Append(unitMask.DOFade(0.3f,0.5f))
+                                    .AppendInterval(revealDuration)
+                                    .Append(unitMask.DOFade(1f, 0.5f));
+                            }                                
+                        }
+                    }
+                })
                 .OnComplete(() => {
-                    // Check line
+                    // Check lines
                     List<Tile> connectedTiles = GridManager.Instance.checkLines(this.transform.position);
                     if (connectedTiles != null) Explodes(connectedTiles);
                     else GameManager.Instance.ChangeState(GameState.SpawnAndQueue);
@@ -166,32 +244,38 @@ public class Tile : MonoBehaviour
         }
     }
     
-    public void Explodes(List<Tile> connectedTiles)
-    {               
+    public void Explodes(List<Tile> connectedTiles, bool byPlayer=true)
+    {        
         // Pooof!
+        HashSet<Tile> tiles = new HashSet<Tile>();
+        bool containUnit = false;
+        bool containBomb = false;
+
         foreach(var tile in connectedTiles)
         {
             if (tile.OccupiedBallUnit.specialType == SpecialUnit.Bomb)
             {                
-                // Find AreaOfEffect to set VFX
-                // by, again, get neighbors around bomb
-                // :(                                
+                /*
+                    Find AreaOfEffect to set VFX
+                    by, again, get neighbors around bomb :(                    
+                */
+                containBomb = true;
                 List<GameObject> AoE = new List<GameObject>();
                 var position =  tile.transform.position;
                 var explodeFX = ObjectPooler.Instance.GetFromPool("BombExplosion");
                 explodeFX.transform.position = position;
                 AoE.Add(explodeFX);
 
-                #region find neighbors in AoE to bomb, allahu akbar
-                for (int xx = -1; xx <= 1; xx++)
+                // find neighbors in AoE to bomb, the units' neighbor, i meant
+                for (int x = -1; x <= 1; x++)
                 {
-                    for (int yy = -1; yy <= 1; yy++)
+                    for (int y = -1; y <= 1; y++)
                     {
-                        if (xx==0 && yy==0) continue;
+                        if (x==0 && y==0) continue;
 
-                        if (GridManager.Instance.IsValidPosition(Mathf.RoundToInt(position.x) + xx, Mathf.RoundToInt(position.y) + yy))
+                        if (GridManager.Instance.IsValidPosition(Mathf.RoundToInt(position.x) + x, Mathf.RoundToInt(position.y) + y))
                         {
-                            var neighborTile = GridManager.Instance.GetTileAtPos(position.x + xx, position.y + yy);                            
+                            var neighborTile = GridManager.Instance.GetTileAtPos(position.x + x, position.y + y);                            
                             if (neighborTile != null) {
                                 explodeFX = ObjectPooler.Instance.GetFromPool("BombExplosion");
                                 explodeFX.transform.position = neighborTile.transform.position;
@@ -200,36 +284,39 @@ public class Tile : MonoBehaviour
                         }
                     }
                 }
-                #endregion
 
+                // play VFX
                 foreach(GameObject VFX in AoE)
                 {
                     VFX.SetActive(true);
-                }
-
-                SoundEffectPlayer.Instance.Play(SFX.explosion);
+                }                
             }
             else
             {
+                containUnit = true;
+
                 var explodeFX = ObjectPooler.Instance.GetFromPool("Explosion");
                 explodeFX.transform.position = tile.transform.position;
                 
                 var FXmain = explodeFX.GetComponent<ParticleSystem>().main;
                 FXmain.startColor = tile.OccupiedBallUnit.GetSpriteColor();
 
-                explodeFX.gameObject.SetActive(true);
-
-                SoundEffectPlayer.Instance.Play(SFX.pop);
+                explodeFX.gameObject.SetActive(true);                
             }            
 
-            tile.OccupiedBallUnit.gameObject.SetActive(false);
-            tile.OccupiedBallUnit = null;            
-            if (tile.queuedBallIndicator != null) tile.RemoveQueuedBall();
+            // Remove Unit
+            if (tile.OccupiedBallUnit != null) tile.RemoveBall();                        
         }
+
+        if (containUnit) SoundEffectPlayer.Instance.Play(SFX.pop);
+        if (containBomb) {
+            CameraShake.Instance.Shake();
+            SoundEffectPlayer.Instance.Play(SFX.explosion);
+        }    
 
         GridManager.Instance.UpdatePathdinding();
         GameManager.Instance.Score += connectedTiles.Count;
-        if (GameManager.Instance.gameState == GameState.PlayerTurn) GameManager.Instance.ChangeState(GameState.SpawnAndQueue);
+        if (GameManager.Instance.gameState == GameState.PlayerTurn && byPlayer) GameManager.Instance.ChangeState(GameState.SpawnAndQueue);
     }
 
     public void SetQueuedBallUnit(Ball ballUnit, bool shouldAnimate = false)
@@ -259,15 +346,22 @@ public class Tile : MonoBehaviour
         this.queuedBallIndicator = null;
         
         List<Tile> connectedTiles = GridManager.Instance.checkLines(this.transform.position);
-        if (connectedTiles != null) Explodes(connectedTiles);
+        if (connectedTiles != null) Explodes(connectedTiles, byPlayer:false);
         else GridManager.Instance.UpdatePathdinding();
     }
 
     private void RemoveQueuedBall()
     {
-        this.queuedBallIndicator.transform.localScale = BallUnitSize.NORMAL;
-        this.queuedBallIndicator.gameObject.SetActive(false);
-        this.queuedBallIndicator = null;
+        queuedBallIndicator.transform.localScale = BallUnitSize.NORMAL;        
+        queuedBallIndicator.gameObject.SetActive(false);
+        queuedBallIndicator = null;
+    }
+
+    private void RemoveBall()
+    {
+        OccupiedBallUnit.OccupiedTile = null;
+        OccupiedBallUnit.gameObject.SetActive(false);
+        OccupiedBallUnit = null;
     }
 
     private void RemoveFromLastSelectedTile(Ball ballUnit)
@@ -277,21 +371,24 @@ public class Tile : MonoBehaviour
         ballUnit.OccupiedTile.OccupiedBallUnit = null; 
     }
 
-    public void RestartTile()
+    public void RefreshTile()
     {
-        if (OccupiedBallUnit != null)
-        {
-            OccupiedBallUnit.OccupiedTile = null;
-            OccupiedBallUnit.gameObject.SetActive(false);
-        }
-
-        if (queuedBallIndicator != null)
-        {
-            RemoveQueuedBall();
-        }
-
+        if (OccupiedBallUnit != null) RemoveBall();
+        if (queuedBallIndicator != null) RemoveQueuedBall();
+        
         isSelected = false;
         ClearHighlight();
+        StopFloatSelected();
         GridManager.Instance.UpdatePathdinding();
+    }
+
+    public void SelfDestruct()
+    {
+        var position =  this.transform.position;
+        var explodeFX = ObjectPooler.Instance.GetFromPool("BombExplosion");        
+        explodeFX.transform.position = position;
+
+        RefreshTile();
+        explodeFX.SetActive(true);
     }
 }

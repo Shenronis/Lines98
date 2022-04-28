@@ -36,8 +36,9 @@ public class Pathfinding
             var position =  tuple.Item1;
             List<PathNode> neighbors = new List<PathNode>();
     
-            // (Up) (Up) (Down) (Down) (Left) (Right) (Left) (Right) (B) (A) [start]
+            // (Up) (Up) (Down) (Down) (Left) (Right) (Left) (Right) [B] [A] [start]
 
+            // Find neighbor
             // Up
             if (position.y + 1 < height) neighbors.Add(GetPathNodeXY(position.x, position.y + 1));
             // Down
@@ -45,7 +46,7 @@ public class Pathfinding
             // Left
             if (position.x - 1 >= 0) neighbors.Add(GetPathNodeXY(position.x - 1, position.y));
             // Right
-            if (position.x + 1 < width) neighbors.Add(GetPathNodeXY(position.x + 1, position.y));
+            if (position.x + 1 < width) neighbors.Add(GetPathNodeXY(position.x + 1, position.y));            
 
             tuple.Item1.neighbors = neighbors;
         }
@@ -63,7 +64,7 @@ public class Pathfinding
         {            
             var tile = tuple.Item2;
             
-            //PathNode isWalkable property
+            // Set PathNode.isWalkable => tile.Walkable == true
             tuple.Item1.isWalkable = tile.Walkable;
         }
     }
@@ -97,7 +98,7 @@ public class Pathfinding
         Queue<PathNode> frontier = new Queue<PathNode>();        
 
         PathNode Start=null, End=null;
-        bool isGhostBall = false;
+        bool shouldBypass = false;
 
         foreach(var tuple in grid)
         {            
@@ -106,7 +107,8 @@ public class Pathfinding
 
             if (position.x == start.x && position.y == start.y) { 
                 Start = tuple.Item1;
-                isGhostBall = (tuple.Item2.OccupiedBallUnit.specialType == SpecialUnit.Ghost);
+                shouldBypass = (tuple.Item2.OccupiedBallUnit.specialType == SpecialUnit.Ghost)
+                            || (tuple.Item2.OccupiedBallUnit.specialType == SpecialUnit.Pacman);
             }
             else if (position.x == end.x && position.y == end.y) {
                 End = tuple.Item1; 
@@ -126,7 +128,7 @@ public class Pathfinding
 
             foreach(var neighbor in current.neighbors)
             {                
-                if (!visited.Contains(neighbor) && (neighbor.isWalkable || isGhostBall))
+                if (!visited.Contains(neighbor) && (neighbor.isWalkable || shouldBypass))
                 {
                     visited.Add(neighbor);
                     frontier.Enqueue(neighbor);

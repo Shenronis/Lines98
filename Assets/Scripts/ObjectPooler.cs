@@ -7,7 +7,7 @@ public class ObjectPooler : MonoBehaviour
 {    
     public static ObjectPooler Instance {get; private set;}
 
-    [System.Serializable]
+    [Serializable]
     public class Pool {
         public int poolSize;
         public string tag;
@@ -16,50 +16,41 @@ public class ObjectPooler : MonoBehaviour
 
     public List<Pool> pools;
     
-    public Dictionary<string, Queue<GameObject>> poolDictionary;
+    public Dictionary<string, List<GameObject>> poolDictionary;
 
     void Awake()
     {
         Instance = this;
-        poolDictionary = new Dictionary<string, Queue<GameObject>>();
+        poolDictionary = new Dictionary<string, List<GameObject>>();
         foreach(Pool pool in pools)
         {
-            Queue<GameObject> objectPool = new Queue<GameObject>();
+            List<GameObject> objectPool = new List<GameObject>();
             for (int i = 0; i < pool.poolSize; i++)
             {
                 GameObject obj = Instantiate(pool.prefab);                
                 obj.SetActive(false);
-                objectPool.Enqueue(obj);
+                objectPool.Add(obj);
             }
 
             poolDictionary.Add(pool.tag, objectPool);
         }
-    }    
-
-    public GameObject SpawnFromPool(string tag)
-    {
-        if (poolDictionary.ContainsKey(tag))
-        {
-            GameObject spawnedObj = poolDictionary[tag].Dequeue();
-            spawnedObj.SetActive(true);
-
-            poolDictionary[tag].Enqueue(spawnedObj);
-
-            return spawnedObj;
-        }
-        else
-        {
-            throw new ArgumentOutOfRangeException(nameof(tag), tag, null);
-        }
     }
 
-    public GameObject GetFromPool(string tag)
+    public GameObject GetFromPool(string tag, bool shouldSpawn=false)
     {
-        if (poolDictionary.ContainsKey(tag))
+         if (poolDictionary.ContainsKey(tag))
         {
-            GameObject spawnedObj = poolDictionary[tag].Dequeue();
-            poolDictionary[tag].Enqueue(spawnedObj);
-
+            GameObject spawnedObj = null;
+            foreach(var obj in poolDictionary[tag])
+            {
+                if (!obj.activeInHierarchy) {
+                    spawnedObj = obj;
+                    break;
+                }
+            }
+            
+            if (shouldSpawn) spawnedObj.SetActive(true);
+            
             return spawnedObj;
         }
         else
