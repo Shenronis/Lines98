@@ -1,5 +1,6 @@
 # Lines98
-An endless classic game, move one ball unit each turn to try and match a continuous line (with 5 or more) of ball unit to explode the line, you get +1 point for each unit you destroy. For each successful movement, end the turn and new ball in queue will take place on the gameboard.</br></br>
+An endless classic game, move one ball unit each turn (Up/Down/Left/Right) to try and match a continuous line \**(continuously in
+horizontal/vertical/diagonal with 5 or more)*\* of ball unit to explode the line, you get +1 point for each unit you destroy. For each successful movement, end the turn and new ball in queue will take place on the gameboard.</br></br>
 
 ## Ball Units (or balls)
 ### Classic Ball Units
