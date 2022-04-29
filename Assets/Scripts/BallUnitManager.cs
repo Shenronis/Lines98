@@ -138,7 +138,7 @@ public class BallUnitManager : MonoBehaviour
     /// </summary>
     /// <param name="chanceAsSpecial">Chance to spawn a unit with special ability</param>
     /// <returns>GameObject</returns>
-    public GameObject SpawnRandomBallUnit(float chanceAsSpecial = 0.8f)
+    public GameObject SpawnRandomBallUnit(float chanceAsSpecial = 0.5f)
     {
         BallUnitType baseColor = GetRandomBallUnit();
         BallUnitSpecial special = GetRandomSpecial();
