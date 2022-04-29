@@ -163,7 +163,7 @@ public class GridManager : MonoBehaviour
     /// checking from the pivot's position
     /// </summary>
     /// <param name="pivot">Pivot's position</param>
-    /// <returns></returns>
+    /// <returns>List<Tile></returns>
     public List<Tile> checkLines(Vector2 pivot)
     {                
         HashSet<Tile> connectedTiles = new HashSet<Tile>(); // Usage: handles overlapping bombs AoE
@@ -300,7 +300,7 @@ public class GridManager : MonoBehaviour
     /// </summary>
     /// <param name="x">Position's x</param>
     /// <param name="y">Position's y</param>
-    /// <returns></returns>
+    /// <returns>bool</returns>
     public bool IsValidPosition(int x, int y)
     {
         if (x < 0 || y < 0) return false;

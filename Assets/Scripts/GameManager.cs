@@ -56,6 +56,7 @@ public class GameManager : MonoBehaviour
         highscore = PlayerPrefs.GetInt("Highscore", 0);
         HUDManager.Instance.SetHighscore(highscore);
 
+		// Check if we need to load game
         if (PlayerPrefs.GetInt("Load") == 1) LoadGame();
         PlayerPrefs.SetInt("Load", 0);
         PlayerPrefs.Save();

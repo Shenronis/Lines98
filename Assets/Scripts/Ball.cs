@@ -68,7 +68,7 @@ public class Ball : MonoBehaviour
     /// <summary>
     /// Set a ball unit's color
     /// </summary>
-    /// <param name="type"></param>
+    /// <param name="type">BallUnitType</param>
     public void SetSpriteColor(BallUnitType type)
     {
         switch (type)

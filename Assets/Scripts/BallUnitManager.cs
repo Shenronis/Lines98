@@ -39,8 +39,8 @@ public class BallUnitManager : MonoBehaviour
     /// Set a ball unit or a queueing ball unit at a specific tile
     /// </summary>
     /// <param name="tile">Tile</param>
-    /// <param name="color"></param>
-    /// <param name="special"></param>
+    /// <param name="color">BallUnitSpecial</param>
+    /// <param name="special">special</param>
     /// <param name="isQueueing">TRUE if set a queueing ball</param>
     public void SetBallUnitAt(Tile tile, BallUnitType? color=null, BallUnitSpecial? special=null, bool isQueueing=false)
     {

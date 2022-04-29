@@ -83,7 +83,7 @@ public class Pathfinding
     /// </summary>
     /// <param name="start">Starting PathNode</param>
     /// <param name="end">End PathNode</param>
-    /// <returns>boolean</returns>
+    /// <returns>bool</returns>
     private bool IsValidPath(PathNode start, PathNode end)
     {
         if ((start==null) || (end==null)) {return false;}
@@ -94,7 +94,7 @@ public class Pathfinding
     /// Backtrack from the given List<> result from the pathfinding algorithm
     /// </summary>
     /// <param name="end"></param>
-    /// <returns></returns>
+    /// <returns>List<PathNode></returns>
     private List<PathNode> BacktrackToPath(PathNode end)
     {        
         List<PathNode> path = new List<PathNode>();

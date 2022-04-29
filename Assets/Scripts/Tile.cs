@@ -408,7 +408,7 @@ public class Tile : MonoBehaviour
     /// <summary>
     /// Remove the ball unit we just move from the previous tile
     /// </summary>
-    /// <param name="ballUnit"></param>
+    /// <param name="ballUnit">Ball</param>
     private void RemoveFromLastSelectedTile(Ball ballUnit)
     {
         ballUnit.OccupiedTile.isSelected = false;
