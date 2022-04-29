@@ -36,6 +36,12 @@ public class ObjectPooler : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Get GameObject from Pool, and see if it should spawn immediately
+    /// </summary>
+    /// <param name="tag">Name tag</param>
+    /// <param name="shouldSpawn">Should spawn immediately</param>
+    /// <returns>GameObject</returns>
     public GameObject GetFromPool(string tag, bool shouldSpawn=false)
     {
          if (poolDictionary.ContainsKey(tag))

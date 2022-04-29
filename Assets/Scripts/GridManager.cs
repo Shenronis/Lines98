@@ -48,8 +48,18 @@ public class GridManager : MonoBehaviour
         return cells;
     }
 
-    public void GenerateGrid()
+    public void GenerateGrid(bool restart=false)
     {
+        if (restart) {
+            // Restart all object's state
+            RestartAllTiles();
+            GameManager.Instance.Score = 0;
+            Timer.Instance.SetTime(0);
+            BallUnitManager.Instance.ClearQueue();
+            GameManager.Instance.ChangeState(GameState.SpawnAndQueue);            
+            return;
+        }         
+
         cells = new Dictionary<Vector2Int, Tile>();
         for (int x = 0; x < width; x++)
         {
@@ -58,14 +68,18 @@ public class GridManager : MonoBehaviour
                 var spawnTile = Instantiate(TilePrefab, new Vector3(x,y), Quaternion.identity);
                 spawnTile.name = $"Tile {x}-{y}";
 
+                // Grab Tile reference
                 cells[new Vector2Int(x,y)] = spawnTile;
             }
         }
 
+        // Camera stuffs
         mainCamera.position = new Vector3((float)width * 0.85f - 0.5f, (float)height/2 - 0.5f, -10f);        
         CameraShake.Instance.SetCameraOrigin(mainCamera.position);
 
+        // Initiate pathfind on Grid(W x H)
         pathfinder = new Pathfinding(cells, width, height);
+
         GameManager.Instance.ChangeState(GameState.SpawnAndQueue);  
     }
 
@@ -85,31 +99,74 @@ public class GridManager : MonoBehaviour
         return GetTileAtPos(new Vector2(x,y));
     }
 
-    public Tile GetRandomTilePosition()
+    /// <summary>
+    /// Grab a random Tile.spawnable==true from grid
+    /// </summary>
+    /// <returns>Tile</returns>
+    public Tile GetRandomSpawnableTilePosition()
     {        
         var tile = cells.Where(t => t.Key.x < width && t.Key.y < height  && t.Value.Spawnable).OrderBy(t => Random.value).First().Value;
         return tile;
     }
 
-    public int CountAvailableTiles()
+    /// <summary>
+    /// Return number of Tile.spawnable
+    /// </summary>
+    /// <returns>int</returns>
+    public int CountSpawnableTile()
     {
         var tile = cells.Where(t => t.Key.x < width && t.Key.y < height  && t.Value.Spawnable);
         return tile.Count();
     }
 
+    /// <summary>
+    /// Return numer of Tile.OccupiedBallUnit==null
+    /// </summary>
+    /// <returns>int</returns>
+    public int CountHasNotOccupiedTile()
+    {
+        var tile = cells.Where(t => t.Key.x < width && t.Key.y < height  && t.Value.OccupiedBallUnit == null);
+        return tile.Count();
+    }
+
+    /// <summary>
+    /// Return number of Tile.Walkable==true
+    /// </summary>
+    /// <returns>int</returns>
+    public int CountMoveableTile()
+    {
+        var tile = cells.Where(t => t.Key.x < width && t.Key.y < height  && t.Value.Walkable);
+        return tile.Count();
+    }
+
+    /// <summary>
+    /// Update pathfind's matrix
+    /// </summary>
     public void UpdatePathdinding()
     {
         pathfinder.UpdatePathdinding();
     }
 
+    /// <summary>
+    /// Call pathfind's algo
+    /// </summary>
+    /// <param name="start">Starting position</param>
+    /// <param name="end">End position</param>
+    /// <returns>Vector3[]</returns>
     public Vector3[] findPath(Vector2 start, Vector2 end)
     {
         return pathfinder.findPath(start, end);
     }
 
+    /// <summary>
+    /// Return a list of continously balls with same color
+    /// checking from the pivot's position
+    /// </summary>
+    /// <param name="pivot">Pivot's position</param>
+    /// <returns></returns>
     public List<Tile> checkLines(Vector2 pivot)
     {                
-        HashSet<Tile> connectedTiles = new HashSet<Tile>();
+        HashSet<Tile> connectedTiles = new HashSet<Tile>(); // Usage: handles overlapping bombs AoE
         int[] u = new int[] { 0, 1, 1, 1 };
         int[] v = new int[] { 1, 0, -1, 1 };
         int x,y,colorMatched;
@@ -117,6 +174,7 @@ public class GridManager : MonoBehaviour
         int _y = Mathf.RoundToInt(pivot.y);
         Tile pivotTile = GetTileAtPos(new Vector2(_x,_y));        
 
+        // Continous line check
         for (int direction = 0; direction < 4; direction++)
         {
             colorMatched = 0;
@@ -150,8 +208,9 @@ public class GridManager : MonoBehaviour
                 colorMatched++;
             }
             
+            // Includes itself!
             colorMatched++;
-
+            
             if (colorMatched >= 5)
             {
                 while (colorMatched-- > 0)
@@ -170,43 +229,50 @@ public class GridManager : MonoBehaviour
         if (connectedTiles.Count > 0) connectedTiles.Add(pivotTile);
         else return null;
 
-        bool minesweeper;
+
+        /*
+            This part is to include every other unit is in the bomb's AoE (a 3x3 matrix)
+            and check if it also trigger the other bomb(s) in AoE, hence chaining the bombs
+        */
+        bool minesweeper; // should loop to include the chained bomb's AoE
         do
         {
-            minesweeper = false;            
+            minesweeper = false;
             foreach(Tile tile in connectedTiles.ToList())
             {
-                // Handle Bomb special ball unit
-                // it will explode all surrounding ball unit (by 3x3 matrix)
-                // we need to find all the neighbors 
-                // and exclude ones we already set for explode
-                if (tile.OccupiedBallUnit.specialType == SpecialUnit.Bomb)
+                /*
+                    As it will explode all surrounding ball unit (by 3x3 matrix)
+                    we need to find all the neighbors 
+                    and exclude ones we already set for explode
+                */
+                if (tile.OccupiedBallUnit.specialType == BallUnitSpecial.Bomb)
                 {
                     var position =  tile.transform.position;
                     List<Tile> neighbors = new List<Tile>();
-                
-                    #region Find Neighbors
-                    for (int xx = -1; xx <= 1; xx++)
+                                    
+                    for (int xCoord = -1; xCoord <= 1; xCoord++)
                     {
-                        for (int yy = -1; yy <= 1; yy++)
+                        for (int yCoord = -1; yCoord <= 1; yCoord++)
                         {
-                            if (xx==0 && yy==0) continue;
+                            // Exclude itself
+                            if (xCoord==0 && yCoord==0) continue;
 
-                            if (IsValidPosition(Mathf.RoundToInt(position.x) + xx, Mathf.RoundToInt(position.y) + yy))
+                            if (IsValidPosition(Mathf.RoundToInt(position.x) + xCoord, Mathf.RoundToInt(position.y) + yCoord))
                             {
-                                var neighborTile = GetTileAtPos(position.x + xx, position.y + yy);
+                                var neighborTile = GetTileAtPos(position.x + xCoord, position.y + yCoord);
 
+                                // Check for overlap
                                 if (connectedTiles.Contains(neighborTile)) continue;
 
                                 if (neighborTile.OccupiedBallUnit != null)
                                 {
-                                    if (neighborTile.OccupiedBallUnit.specialType == SpecialUnit.Bomb) {minesweeper=true;}
+                                    // Check if another bomb was triggered
+                                    if (neighborTile.OccupiedBallUnit.specialType == BallUnitSpecial.Bomb) {minesweeper=true;}
                                     neighbors.Add(neighborTile);
                                 }
                             }
                         }
                     }
-                    #endregion
                                     
                     connectedTiles.UnionWith(neighbors);
                 }
@@ -216,18 +282,25 @@ public class GridManager : MonoBehaviour
         return connectedTiles.ToList();
     }
 
+
     private bool IsValidTile(Tile pivotTile, Tile tile)
     {
         if (tile.OccupiedBallUnit == null) return false;
 
         // Crate can only be destroyed by bomb
-        if (tile.OccupiedBallUnit.specialType == SpecialUnit.Crate) return false;
+        if (tile.OccupiedBallUnit.specialType == BallUnitSpecial.Crate) return false;
 
         if (pivotTile.OccupiedBallUnit.Type != tile.OccupiedBallUnit.Type) return false;
 
         return true;
     }
 
+    /// <summary>
+    /// Check if the given coordinates is within grid
+    /// </summary>
+    /// <param name="x">Position's x</param>
+    /// <param name="y">Position's y</param>
+    /// <returns></returns>
     public bool IsValidPosition(int x, int y)
     {
         if (x < 0 || y < 0) return false;
@@ -235,6 +308,9 @@ public class GridManager : MonoBehaviour
         return true;
     }
 
+    /// <summary>
+    /// Run Tile.RefreshTile() on all Tile in grid
+    /// </summary>
     public void RestartAllTiles()
     {
         foreach(KeyValuePair<Vector2Int, Tile> cell in cells)
@@ -245,26 +321,43 @@ public class GridManager : MonoBehaviour
 
 
 
-    // a fun hidden input
+    /*
+        A little hidden input
+        
+        BIGBANG
+
+        a Cheat Code in GTA Vice City
+        for blowing up vehicle
+    */
     private KeyCode[] nukeSequence = new KeyCode[]
     {
-        KeyCode.UpArrow,
-        KeyCode.UpArrow,
-        KeyCode.DownArrow,
-        KeyCode.DownArrow,
-        KeyCode.LeftArrow,
-        KeyCode.RightArrow,
-        KeyCode.LeftArrow,
-        KeyCode.RightArrow,
+        KeyCode.B,
+        KeyCode.I,
+        KeyCode.G,
+        KeyCode.B,
+        KeyCode.A,
+        KeyCode.N,
+        KeyCode.G,        
     };
     private int sequenceIndex;
+    bool hasFired = false;
     
     private void Update() {
-        if (Input.GetKeyDown(nukeSequence[sequenceIndex])) {
+
+        /*
+            Cheat code that will demolish the game board
+            and can only be used one per game
+        */
+        if (Input.GetKeyDown(nukeSequence[sequenceIndex]) && !hasFired) {
+            CameraShake.Instance.Shake(0.3f, 0.2f);
+            SoundEffectPlayer.Instance.Play(SFX.select);
+
             if (++sequenceIndex == nukeSequence.Length){
                 sequenceIndex = 0;
-                TACTICALNUKE();
+                hasFired = true;
+                TACTICALNUKE();                                
             }
+
         } else if (Input.anyKeyDown) sequenceIndex = 0;
     }
 
@@ -274,7 +367,7 @@ public class GridManager : MonoBehaviour
         {
             cell.Value.SelfDestruct();
         }
-
         SoundEffectPlayer.Instance.Play(SFX.explosion);
+        GenerateGrid(restart:true);
     }
 }

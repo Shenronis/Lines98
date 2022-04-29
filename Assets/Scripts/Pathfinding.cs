@@ -52,12 +52,21 @@ public class Pathfinding
         }
     }
 
+    /// <summary>
+    /// Return a PathNode at a given coordinate x,y
+    /// </summary>
+    /// <param name="x">Position's x</param>
+    /// <param name="y">Position's x</param>
+    /// <returns>PathNode</returns>
     private PathNode GetPathNodeXY(int x, int y)
     {
         var searchPos = new Vector2(x,y);
         return grid.Find(t => t.Item1.position == searchPos).Item1;
     }
 
+    /// <summary>
+    /// Update grid to set each PathNode.isWalkable
+    /// </summary>
     public void UpdatePathdinding()
     {
         foreach(var tuple in grid)
@@ -69,12 +78,23 @@ public class Pathfinding
         }
     }
 
+    /// <summary>
+    /// Return if the given start, end PathNode is valid
+    /// </summary>
+    /// <param name="start">Starting PathNode</param>
+    /// <param name="end">End PathNode</param>
+    /// <returns>boolean</returns>
     private bool IsValidPath(PathNode start, PathNode end)
     {
         if ((start==null) || (end==null)) {return false;}
         return true;
     }
 
+    /// <summary>
+    /// Backtrack from the given List<> result from the pathfinding algorithm
+    /// </summary>
+    /// <param name="end"></param>
+    /// <returns></returns>
     private List<PathNode> BacktrackToPath(PathNode end)
     {        
         List<PathNode> path = new List<PathNode>();
@@ -92,6 +112,12 @@ public class Pathfinding
         return path;
     }
 
+    /// <summary>
+    /// BFS Pathfinding algorithm
+    /// </summary>
+    /// <param name="start">Starting position</param>
+    /// <param name="end">End position</param>
+    /// <returns>List<PathNode></returns>
     public List<PathNode> findPath_BFS(Vector2 start, Vector2 end)
     {
         HashSet<PathNode> visited = new HashSet<PathNode>();
@@ -107,8 +133,8 @@ public class Pathfinding
 
             if (position.x == start.x && position.y == start.y) { 
                 Start = tuple.Item1;
-                shouldBypass = (tuple.Item2.OccupiedBallUnit.specialType == SpecialUnit.Ghost)
-                            || (tuple.Item2.OccupiedBallUnit.specialType == SpecialUnit.Pacman);
+                shouldBypass = (tuple.Item2.OccupiedBallUnit.specialType == BallUnitSpecial.Ghost)
+                            || (tuple.Item2.OccupiedBallUnit.specialType == BallUnitSpecial.Pacman);
             }
             else if (position.x == end.x && position.y == end.y) {
                 End = tuple.Item1; 
@@ -142,6 +168,18 @@ public class Pathfinding
         return path;
     }
 
+    /// <summary>
+    /// A wrapper to return Vector3[] from pathfinding algorithm
+    /// The reason is DOTween.DOPath() needs to be feeded with Vector3[]
+    /// </summary>
+    /// 
+    /// <example>
+    /// DOPath(Vector3[] waypoints, float duration, PathType pathType = Linear, PathMode pathMode = Full3D, int resolution = 10, Color gizmoColor = null)
+    /// </example>
+    /// 
+    /// <param name="start">Starting position</param>
+    /// <param name="end">End position</param>
+    /// <returns>Vector3[]</returns>
     public Vector3[] findPath(Vector2 start, Vector2 end)
     {
         var path = findPath_BFS(start, end);

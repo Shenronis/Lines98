@@ -5,20 +5,32 @@ using TMPro;
 
 public class PauseMenu : MonoBehaviour
 {
+    public static PauseMenu Instance {get; private set;}
     public static bool isPaused = false;
 
     [SerializeField] private GameObject pauseMenuUI;
     [SerializeField] private GameObject popup;
     [SerializeField] private TextMeshProUGUI popupText;
 
+    void Awake()
+    {
+        Instance = this;
+    }
 
     void Update()
     {
+        // Click any to continue
         if (Input.anyKeyDown)
         {
             if (popup.activeInHierarchy)
             {
                 ClosePopup();
+
+                // If popup was the losing state prompt
+                if (GameManager.Instance.gameState == GameState.Lose)
+                {                    
+                    GridManager.Instance.GenerateGrid(restart:true);
+                }
             }
         }
 
@@ -54,18 +66,28 @@ public class PauseMenu : MonoBehaviour
     public void Save()
     {
         if (GameManager.Instance.SaveGame())
-        {            
-            popupText.text = "SAVED!";            
+        {                        
+            popupText.text = "SAVED!";
         }
         else
         {
             popupText.text = "ERROR!";
         }
         
+        OpenPopup();
+    }
+
+    public void ChangePromptText(string str)
+    {
+        popupText.text = str;
+    }
+
+    public void OpenPopup()
+    {        
         popup.SetActive(true);
     }
 
-    private void ClosePopup()
+    public void ClosePopup()
     {        
         popup.SetActive(false);
     }

@@ -17,7 +17,8 @@ public class HUDManager : MonoBehaviour
     private Transform Highscore;
     private Transform Holder;
     private Transform SlotTemplate;    
-    private Transform BallUnitTemplate;    
+    private Transform BallUnitTemplate;
+    private Transform LosePopup;
 
     void Awake()
     {        
@@ -59,7 +60,7 @@ public class HUDManager : MonoBehaviour
             var special = unitSlot.transform.GetChild(1).GetComponent<Image>();     
             var queuedBallUnit = tile.queuedBallIndicator;
             var colorBase = queuedBallUnit.GetSpriteColor();
-            var maskBase = (queuedBallUnit.specialType == SpecialUnit.None)? null : queuedBallUnit.GetMaskSprite();
+            var maskBase = (queuedBallUnit.specialType == BallUnitSpecial.None)? null : queuedBallUnit.GetMaskSprite();
             
             unit.color = colorBase;
             

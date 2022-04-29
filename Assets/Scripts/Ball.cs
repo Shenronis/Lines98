@@ -3,8 +3,12 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// This class is the Ball's base script
+/// it contains information about a ball unit's color and special
+/// </summary>
 public class Ball : MonoBehaviour
-{
+{    
     [SerializeField] private ParticleSystem ExplodeFX;
     [SerializeField] private ParticleSystem BombExplodeFX;
     public BallUnitType type;
@@ -24,12 +28,12 @@ public class Ball : MonoBehaviour
             return type;
         }
     }
-    public SpecialUnit special;
-    public SpecialUnit specialType {
+    public BallUnitSpecial special;
+    public BallUnitSpecial specialType {
         set {
-            if (Enum.IsDefined(typeof(SpecialUnit), value.ToString())) {                
-                special = (SpecialUnit)Enum.Parse(typeof(SpecialUnit), value.ToString());
-                if (special == SpecialUnit.None) return;
+            if (Enum.IsDefined(typeof(BallUnitSpecial), value.ToString())) {                
+                special = (BallUnitSpecial)Enum.Parse(typeof(BallUnitSpecial), value.ToString());
+                if (special == BallUnitSpecial.None) return;
 
                 Transform mask = this.gameObject.transform.GetChild(0);
                 mask.GetComponent<SpriteRenderer>().sprite = BallUnitManager.Instance.GetSpecialUnitSprite(special);
@@ -52,11 +56,19 @@ public class Ball : MonoBehaviour
         return this.GetComponentInParent<SpriteRenderer>().color;
     }
 
+    /// <summary>
+    /// Not exactly an overload
+    /// but rather the main operation for SetSpriteColor(BallUnitType)
+    /// </summary>    
     public void SetSpriteColor(Color color)
     {
         this.GetComponentInParent<SpriteRenderer>().color = color;
     }
 
+    /// <summary>
+    /// Set a ball unit's color
+    /// </summary>
+    /// <param name="type"></param>
     public void SetSpriteColor(BallUnitType type)
     {
         switch (type)
@@ -95,6 +107,10 @@ public class Ball : MonoBehaviour
     }
 }
 
+// ===============================
+// Ball unit's default values
+// ===============================
+
 public class BallUnitSize {
     public static Vector3 NORMAL = new Vector3(0.9f, 0.9f, 1);    
     public static Vector3 QUEUE = new Vector3(0.3f, 0.3f, 1);
@@ -119,7 +135,7 @@ public enum BallUnitType
     Magenta
 }
 
-public enum SpecialUnit
+public enum BallUnitSpecial
 {
     None,
     Ghost,

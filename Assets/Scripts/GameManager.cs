@@ -57,7 +57,8 @@ public class GameManager : MonoBehaviour
         HUDManager.Instance.SetHighscore(highscore);
 
         if (PlayerPrefs.GetInt("Load") == 1) LoadGame();
-        PlayerPrefs.SetInt("Load", 0);        
+        PlayerPrefs.SetInt("Load", 0);
+        PlayerPrefs.Save();
     }
 
     public void ChangeState(GameState state)
@@ -65,18 +66,26 @@ public class GameManager : MonoBehaviour
         gameState = state;
         switch (state)
         {
+            // Starting State or Restarting State
             case GameState.GenerateGrid:
                 GridManager.Instance.GenerateGrid();
                 break;
+
+            // Spawn and then Queue State
             case GameState.SpawnAndQueue:
                 BallUnitManager.Instance.SpawnBallUnits();                
                 break;
+
+            // Player's turn, all handled in Tile.cs
             case GameState.PlayerTurn:
                 break;
-            case GameState.Lose:
-                GridManager.Instance.RestartAllTiles();
-                ChangeState(GameState.GenerateGrid);
+
+            // Losing State
+            case GameState.Lose:                
+                PauseMenu.Instance.ChangePromptText("YOU LOSE!");
+                PauseMenu.Instance.OpenPopup(); // closing popup will then restart the game
                 break;
+                
             default:
                 throw new ArgumentOutOfRangeException(nameof(state), state, null);
         }
@@ -85,10 +94,11 @@ public class GameManager : MonoBehaviour
     public SaveState CreateSaveState()
     {
         SaveState save = new SaveState();
-        save.gameState = (Int32)gameState;
-        save.score = score;
-        save.time = time;
+        save.gameState = (Int32)gameState;                              // Current game's state
+        save.score = score;                                             // Current score
+        save.time = time;                                               // Current time            
 
+        // Save grid (Gameboard) state
         foreach(var cell in GridManager.Instance.GetGrid())
         {
             var tilePos = (Vector2)cell.Key;
@@ -96,10 +106,11 @@ public class GameManager : MonoBehaviour
 
             if (unit != null) 
             {
-                save.board[tilePos.ToString()] = new Tuple<BallUnitType, SpecialUnit>(unit.Type, unit.specialType);
+                save.board[tilePos.ToString()] = new Tuple<BallUnitType, BallUnitSpecial>(unit.Type, unit.specialType);
             }
         }
 
+        // Save pending queue
         foreach(var tile in BallUnitManager.Instance.GetQueue())
         {
             var tilePos = (Vector2)tile.transform.position;
@@ -107,26 +118,21 @@ public class GameManager : MonoBehaviour
 
             if (queuedUnit != null)
             {
-                save.queue[tilePos.ToString()] = new Tuple<BallUnitType, SpecialUnit>(queuedUnit.Type, queuedUnit.specialType);
+                save.queue[tilePos.ToString()] = new Tuple<BallUnitType, BallUnitSpecial>(queuedUnit.Type, queuedUnit.specialType);
             }
         }
 
         return save;
     }
 
+    /// <summary>
+    /// Save the current game
+    /// </summary>
+    /// <returns>TRUE if saved</returns>
     public bool SaveGame()
     {        
         SaveState save = CreateSaveState();
         string json = JsonConvert.SerializeObject(save);
-
-        PlayerPrefs.SetInt("BGM", SoundManager.Instance.BGM.mute? 0:1);
-        PlayerPrefs.SetInt("SFX", SoundManager.Instance.SFX.mute? 0:1);
-        PlayerPrefs.Save();
-
-        // Debug
-        // Debug.Log(json);
-        // GridManager.Instance.RestartAllTiles();
-        // ~Debug
 
         try
         {
@@ -169,44 +175,44 @@ public class GameManager : MonoBehaviour
         SaveState save = LoadSaveState();        
         if (save == null) return;
 
-        SoundManager.Instance.SetBGM((PlayerPrefs.GetInt("BGM") == 1));
-        SoundManager.Instance.SetSFX((PlayerPrefs.GetInt("SFX") == 1));        
-
         GridManager.Instance.RestartAllTiles();
-        ChangeState((GameState)save.gameState);
-        
-        Debug.Log($"Score: {save.score}");        
-        Score = save.score;
-
-        Debug.Log($"Time: {save.time}");
-        Timer.Instance.SetTime(save.time);
-        
-        Debug.Log("Board");
+        ChangeState((GameState)save.gameState); // Game state                   
+        Score = save.score;                     // Score
+        Timer.Instance.SetTime(save.time);      // Time
+                
+        // Grid (Gameboard)
         foreach(var pair in save.board)
         {
             Vector2 pos = ParseStringToVector2(pair.Key);
             BallUnitType type = (BallUnitType)pair.Value.Item1;
-            SpecialUnit special = (SpecialUnit)pair.Value.Item2;
-            Debug.Log($"Tile({pos.x}, {pos.y}): {type.ToString()} - {special.ToString()}");
-            
+            BallUnitSpecial special = (BallUnitSpecial)pair.Value.Item2;
+                        
             BallUnitManager.Instance.SetBallUnitAt(pos, type, special, isQueueing:false);
         }
         
-        Debug.Log("Queue");
+        // Queue
         Queue<Tile> queue = new Queue<Tile>();
         foreach(var pair in save.queue)
         {
             Vector2 pos = ParseStringToVector2(pair.Key);
             BallUnitType type = (BallUnitType)pair.Value.Item1;
-            SpecialUnit special = (SpecialUnit)pair.Value.Item2;
-            Debug.Log($"Tile({pos.x}, {pos.y}): {type.ToString()} - {special.ToString()}");
+            BallUnitSpecial special = (BallUnitSpecial)pair.Value.Item2;            
 
+            // Spawn as queue
             BallUnitManager.Instance.SetBallUnitAt(pos, type, special, isQueueing:true);
+
+            // Restore queue
             queue.Enqueue(GridManager.Instance.GetTileAtPos(pos));
-        }
+        }        
+        // Assign queue
         BallUnitManager.Instance.SetQueue(queue);
     }
 
+    /// <summary>
+    /// Parse string to Vector2
+    /// </summary>
+    /// <param name="strVector">"(x, y)"</param>
+    /// <returns>Vector2</returns>
     private Vector2 ParseStringToVector2(string strVector)
     {
         // RegEx for matching coords 
@@ -221,10 +227,9 @@ public class GameManager : MonoBehaviour
 }
 
 public enum GameState
-{
+{    
     GenerateGrid,
     SpawnAndQueue,
-    PlayerTurn,
-    Win,
+    PlayerTurn,    
     Lose
 }

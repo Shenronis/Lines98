@@ -13,14 +13,24 @@ public class SoundManager : MonoBehaviour
         Instance = this;
     }
 
+    void Start()
+    {
+        SetBGM((PlayerPrefs.GetInt("BGM") == 1));
+        SetSFX((PlayerPrefs.GetInt("SFX") == 1));
+    }
+
     public void ToggleBGM()
     {
         BGM.mute = !BGM.mute;
+        PlayerPrefs.SetInt("BGM", BGM.mute? 0:1);
+        PlayerPrefs.Save();
     }
 
     public void ToggleSFX()
     {
         SFX.mute = !SFX.mute;
+        PlayerPrefs.SetInt("SFX", SFX.mute? 0:1);
+        PlayerPrefs.Save();
     }
 
     public void SetBGM(bool on)
@@ -29,6 +39,8 @@ public class SoundManager : MonoBehaviour
         else BGM.mute = true;
         
         HUDManager.Instance.SetBGM(on);
+        PlayerPrefs.SetInt("BGM", BGM.mute? 0:1);
+        PlayerPrefs.Save();
     }
 
     public void SetSFX(bool on)
@@ -37,6 +49,8 @@ public class SoundManager : MonoBehaviour
         else SFX.mute = true;
 
         HUDManager.Instance.SetSFX(on);
+        PlayerPrefs.SetInt("SFX", SFX.mute? 0:1);
+        PlayerPrefs.Save();
     }
 
     public void PauseBGM()

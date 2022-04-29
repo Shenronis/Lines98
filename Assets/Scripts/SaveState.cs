@@ -8,6 +8,15 @@ public class SaveState
     public int gameState;
     public int score;
     public float time;
-    public Dictionary<string, Tuple<BallUnitType, SpecialUnit>> board = new Dictionary<string, Tuple<BallUnitType, SpecialUnit>>();
-    public Dictionary<string, Tuple<BallUnitType, SpecialUnit>> queue = new Dictionary<string, Tuple<BallUnitType, SpecialUnit>>();
+
+    /*
+        Why string and Tuple<>
+        I want to save everything in .json
+
+        Saving as in form of Dictionary<Vector2Int, Ball>
+            so type string would represent Vector2Int as "({x}, {y})"
+            and type Tuple<> would represent a Ball class (color & special)
+    */
+    public Dictionary<string, Tuple<BallUnitType, BallUnitSpecial>> board = new Dictionary<string, Tuple<BallUnitType, BallUnitSpecial>>();
+    public Dictionary<string, Tuple<BallUnitType, BallUnitSpecial>> queue = new Dictionary<string, Tuple<BallUnitType, BallUnitSpecial>>();
 }

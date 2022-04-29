@@ -31,6 +31,7 @@ public class Tile : MonoBehaviour
     {
         if (GameManager.Instance.gameState == GameState.PlayerTurn) {
 
+            // Visual movement indicator
             if (!OccupiedBallUnit) GridManager.Instance.Draw(this.transform.position);
             else GridManager.Instance.Erase();
 
@@ -54,12 +55,15 @@ public class Tile : MonoBehaviour
         hightlightMask.SetActive(false);
     }
 
+    /// <summary>
+    /// Handles selecting operation
+    /// </summary>
     void OnMouseDown()
     {
         // If not player's turn, ignore
         if (GameManager.Instance.gameState != GameState.PlayerTurn) { return; }
 
-        // Remove pathfinding visual
+        // Remove visual movment indicator
         GridManager.Instance.Erase();
 
         // If selected cell have a ball unit
@@ -127,8 +131,9 @@ public class Tile : MonoBehaviour
                     SetBallUnitPosition(selectedUnit, shouldAnimate:true);
 
                     // Don't forget the SFX(s)
-                    if (selectedUnit.specialType == SpecialUnit.Ghost) SoundEffectPlayer.Instance.Play(SFX.ghost);
-                    if (selectedUnit.specialType == SpecialUnit.Bomb) SoundEffectPlayer.Instance.Play(SFX.bomb);
+                    if (selectedUnit.specialType == BallUnitSpecial.Ghost) SoundEffectPlayer.Instance.Play(SFX.ghost);
+                    if (selectedUnit.specialType == BallUnitSpecial.Bomb) SoundEffectPlayer.Instance.Play(SFX.bomb);
+                    if (selectedUnit.specialType == BallUnitSpecial.Pacman) SoundEffectPlayer.Instance.Play(SFX.pacman);
                     SoundEffectPlayer.Instance.Play(SFX.move);
                 }
                 else
@@ -144,6 +149,9 @@ public class Tile : MonoBehaviour
         }   
     }
 
+    /// <summary>
+    /// Float the occupied ball unit with DOTween.Sequence
+    /// </summary>
     public void FloatSelected()
     {
         if (floatingSeq !=null && floatingSeq.IsPlaying()) return;
@@ -156,6 +164,9 @@ public class Tile : MonoBehaviour
             .OnComplete(()=>{floatingSeq.Restart();});
     }
 
+    /// <summary>
+    /// Kill the ball unit's floating DOTween.Sequence
+    /// </summary>
     public void StopFloatSelected()
     {
         if (floatingSeq != null && floatingSeq.IsPlaying())
@@ -166,63 +177,66 @@ public class Tile : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Main operation to move the ball after selecting the unit and an empty tile
+    /// </summary>
+    /// <param name="ballUnit">Unit to move</param>
+    /// <param name="shouldAnimate">FALSE to simply place the ball there</param>
     public void SetBallUnitPosition(Ball ballUnit, bool shouldAnimate = false)
-    {                    
+    {                            
         if (ballUnit.OccupiedTile != null) RemoveFromLastSelectedTile(ballUnit);        
-        if (this.queuedBallIndicator != null) RemoveQueuedBall();
+        if (this.queuedBallIndicator != null) RemoveQueuedBall(); //Block the queue ball unit (seems like this core behavior was missing in the requirement)
         this.OccupiedBallUnit = ballUnit;
         ballUnit.OccupiedTile = this;
-
-        GridManager.Instance.UpdatePathdinding();
-
-        //debug
-        // List<Tile> connectedTiles = GridManager.Instance.checkLines(this.transform.position);
-        // if (connectedTiles != null) Explodes(connectedTiles);
-        // return;
-        //debug
+        
+        GridManager.Instance.UpdatePathdinding();        
 
         if (shouldAnimate)
         {            
             ballUnit.transform.DOPath(pathVectorArray, 0.5f)
-                .OnWaypointChange((int waypoint) => {
+                // This will trigger everytime DOPath switches to a new point in Vector3[]pathVectorArray
+                .OnWaypointChange((int waypoint) => {   
                     /*
                         Track Pacman's path and Ghost for
                         their special abilities
                     */
-                    if (ballUnit.specialType == SpecialUnit.Pacman)
+                    if (ballUnit.specialType == BallUnitSpecial.Pacman)
                     {                        
                         var pos = ballUnit.transform.position;
                         var effectedTile = GridManager.Instance.GetTileAtPos(pos);
-
+                    
+                        // Eats every unit on it's way, but don't contribute to points
                         if (effectedTile.OccupiedBallUnit != null && effectedTile.OccupiedBallUnit != ballUnit) {
                             var explodeFX = ObjectPooler.Instance.GetFromPool("Explosion");
-                            explodeFX.transform.position = effectedTile.transform.position;
+                            explodeFX.transform.position = effectedTile.transform.position;                            
                             
                             var FXmain = explodeFX.GetComponent<ParticleSystem>().main;
                             FXmain.startColor = effectedTile.OccupiedBallUnit.GetSpriteColor();
 
                             explodeFX.gameObject.SetActive(true);
-
-                            SoundEffectPlayer.Instance.Play(SFX.pop);
+                            SoundEffectPlayer.Instance.Play(SFX.pop);                            
 
                             effectedTile.RemoveBall();
                         }
                     }
-                    else if (ballUnit.specialType == SpecialUnit.Ghost)
+                    else if (ballUnit.specialType == BallUnitSpecial.Ghost)
                     {
                         var pos = ballUnit.transform.position;
                         var effectedTile = GridManager.Instance.GetTileAtPos(pos);
                         var unit = effectedTile.OccupiedBallUnit;
 
-                        // How long should the cardbox be revealed by Ghost?
+                        // How long should the cardbox unit be revealed by Ghost?
                         float revealDuration = 3.0f;
 
                         if (unit != null && unit != ballUnit) {
-                            // Solid Snake?
-                            if (unit.specialType == SpecialUnit.Cardbox) {
+                            // Check for Solid Snake?
+                            if (unit.specialType == BallUnitSpecial.Cardbox) {
                                 var unitMask = unit.GetMask();
-                                if (unitMask.color.a != 1f) return;
 
+                                // if is unit is being revealed then do nothing
+                                if (unitMask.color.a != 1f) return; 
+
+                                // Fading the mask DOTween.Sequence
                                 Sequence fadeSequence = DOTween.Sequence();
                                 fadeSequence.Append(unitMask.DOFade(0.3f,0.5f))
                                     .AppendInterval(revealDuration)
@@ -232,7 +246,10 @@ public class Tile : MonoBehaviour
                     }
                 })
                 .OnComplete(() => {
-                    // Check lines
+                    /*
+                        Check existing continuous line
+                        else end turn
+                    */
                     List<Tile> connectedTiles = GridManager.Instance.checkLines(this.transform.position);
                     if (connectedTiles != null) Explodes(connectedTiles);
                     else GameManager.Instance.ChangeState(GameState.SpawnAndQueue);
@@ -244,16 +261,25 @@ public class Tile : MonoBehaviour
         }
     }
     
+    /// <summary>
+    /// Pooof!
+    /// This handle the ball unit explode/pop behavior and calculate score
+    /// 
+    /// Also checking if this was triggered by Player to end the turn
+    /// because if there were (a) previous queued ball unit(s) set into tile
+    /// then it will also become a valid continous line, thus triggering this method        
+    /// </summary>
+    /// 
+    /// <param name="connectedTiles">The continous? line to destroy</param>
+    /// <param name="byPlayer">If was trigger in player's turn</param>
     public void Explodes(List<Tile> connectedTiles, bool byPlayer=true)
-    {        
-        // Pooof!
-        HashSet<Tile> tiles = new HashSet<Tile>();
+    {                        
         bool containUnit = false;
         bool containBomb = false;
 
         foreach(var tile in connectedTiles)
         {
-            if (tile.OccupiedBallUnit.specialType == SpecialUnit.Bomb)
+            if (tile.OccupiedBallUnit.specialType == BallUnitSpecial.Bomb)
             {                
                 /*
                     Find AreaOfEffect to set VFX
@@ -264,9 +290,9 @@ public class Tile : MonoBehaviour
                 var position =  tile.transform.position;
                 var explodeFX = ObjectPooler.Instance.GetFromPool("BombExplosion");
                 explodeFX.transform.position = position;
-                AoE.Add(explodeFX);
+                explodeFX.SetActive(true);
 
-                // find neighbors in AoE to bomb, the units' neighbor, i meant
+                // find neighbors in AoE to bomb, the units' neighbor(s), i meant
                 for (int x = -1; x <= 1; x++)
                 {
                     for (int y = -1; y <= 1; y++)
@@ -279,17 +305,11 @@ public class Tile : MonoBehaviour
                             if (neighborTile != null) {
                                 explodeFX = ObjectPooler.Instance.GetFromPool("BombExplosion");
                                 explodeFX.transform.position = neighborTile.transform.position;
-                                AoE.Add(explodeFX);
+                                explodeFX.SetActive(true);
                             }
                         }
                     }
                 }
-
-                // play VFX
-                foreach(GameObject VFX in AoE)
-                {
-                    VFX.SetActive(true);
-                }                
             }
             else
             {
@@ -308,6 +328,7 @@ public class Tile : MonoBehaviour
             if (tile.OccupiedBallUnit != null) tile.RemoveBall();                        
         }
 
+        // Play SFX
         if (containUnit) SoundEffectPlayer.Instance.Play(SFX.pop);
         if (containBomb) {
             CameraShake.Instance.Shake();
@@ -315,10 +336,18 @@ public class Tile : MonoBehaviour
         }    
 
         GridManager.Instance.UpdatePathdinding();
+        
+        // Update score based on how many unit was exploded/popepd
         GameManager.Instance.Score += connectedTiles.Count;
+
         if (GameManager.Instance.gameState == GameState.PlayerTurn && byPlayer) GameManager.Instance.ChangeState(GameState.SpawnAndQueue);
     }
 
+    /// <summary>
+    /// Set ball unit as queue state (indicator)
+    /// </summary>
+    /// <param name="ballUnit">Ball</param>
+    /// <param name="shouldAnimate">FALSE to simply place it there</param>
     public void SetQueuedBallUnit(Ball ballUnit, bool shouldAnimate = false)
     {             
         if (this.OccupiedBallUnit) {
@@ -328,10 +357,13 @@ public class Tile : MonoBehaviour
 
         this.queuedBallIndicator = ballUnit;
         ballUnit.transform.position = this.transform.position;
-        ballUnit.transform.localScale = Vector3.zero;
-        ballUnit.transform.DOScale(BallUnitSize.QUEUE, 0.5f);     
+        ballUnit.transform.localScale = Vector3.zero;           // Pre-set for animation
+        ballUnit.transform.DOScale(BallUnitSize.QUEUE, 0.5f);   // Grow into smol size
     }
 
+    /// <summary>
+    /// Set the queued ball (indicator) to fully appear, thus occupying the tile
+    /// </summary>
     public void SetQueueToBall()
     {                   
         if (this.queuedBallIndicator == null) return;
@@ -340,16 +372,22 @@ public class Tile : MonoBehaviour
             return;
         }
 
-        this.queuedBallIndicator.transform.DOScale(BallUnitSize.NORMAL, 0.5f);
+        this.queuedBallIndicator.transform.DOScale(BallUnitSize.NORMAL, 0.5f);  // Fully grown animation
+
+
         this.OccupiedBallUnit = this.queuedBallIndicator;        
         this.OccupiedBallUnit.OccupiedTile = this;
         this.queuedBallIndicator = null;
         
+        // Check if this freshly appeared unit trigger a continous line
         List<Tile> connectedTiles = GridManager.Instance.checkLines(this.transform.position);
         if (connectedTiles != null) Explodes(connectedTiles, byPlayer:false);
         else GridManager.Instance.UpdatePathdinding();
     }
 
+    /// <summary>
+    /// Remove the queue ball (indicator)
+    /// </summary>
     private void RemoveQueuedBall()
     {
         queuedBallIndicator.transform.localScale = BallUnitSize.NORMAL;        
@@ -357,6 +395,9 @@ public class Tile : MonoBehaviour
         queuedBallIndicator = null;
     }
 
+    /// <summary>
+    /// Remove the ball unit
+    /// </summary>
     private void RemoveBall()
     {
         OccupiedBallUnit.OccupiedTile = null;
@@ -364,6 +405,10 @@ public class Tile : MonoBehaviour
         OccupiedBallUnit = null;
     }
 
+    /// <summary>
+    /// Remove the ball unit we just move from the previous tile
+    /// </summary>
+    /// <param name="ballUnit"></param>
     private void RemoveFromLastSelectedTile(Ball ballUnit)
     {
         ballUnit.OccupiedTile.isSelected = false;
@@ -371,6 +416,9 @@ public class Tile : MonoBehaviour
         ballUnit.OccupiedTile.OccupiedBallUnit = null; 
     }
 
+    /// <summary>
+    /// Restore Tile as new (empty)
+    /// </summary>
     public void RefreshTile()
     {
         if (OccupiedBallUnit != null) RemoveBall();
@@ -382,6 +430,9 @@ public class Tile : MonoBehaviour
         GridManager.Instance.UpdatePathdinding();
     }
 
+    /// <summary>
+    /// RefreshTile(), but we're bombing the Tile
+    /// </summary>
     public void SelfDestruct()
     {
         var position =  this.transform.position;

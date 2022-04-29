@@ -4,11 +4,13 @@ using UnityEngine;
 public class SoundEffectPlayer : MonoBehaviour
 {
     public static SoundEffectPlayer Instance {get; private set;}
+    [SerializeField] AudioClip GUI;
     [SerializeField] AudioClip ballUnitExplode;
     [SerializeField] AudioClip ghostMove;
     [SerializeField] AudioClip bombMove;
-    [SerializeField] AudioClip bombSpecialExplode;    
+    [SerializeField] AudioClip bombSpecialExplode;
     [SerializeField] AudioClip moveSFX;
+    [SerializeField] AudioClip pacmanSFX;
     private AudioSource audioSource;
 
     void Awake()
@@ -21,6 +23,9 @@ public class SoundEffectPlayer : MonoBehaviour
     {
         switch(track)
         {
+            case SFX.select:
+                audioSource.PlayOneShot(GUI);
+                break;
             case SFX.pop:
                 audioSource.PlayOneShot(ballUnitExplode);
                 break;
@@ -33,6 +38,9 @@ public class SoundEffectPlayer : MonoBehaviour
             case SFX.bomb:
                 audioSource.PlayOneShot(bombMove);
                 break;
+            case SFX.pacman:
+                audioSource.PlayOneShot(pacmanSFX);
+                break;
             case SFX.move:
                 audioSource.PlayOneShot(moveSFX);
                 break;
@@ -44,9 +52,11 @@ public class SoundEffectPlayer : MonoBehaviour
 
 public enum SFX
 {
+    select,
     pop,
     ghost,
     bomb,
     explosion,
+    pacman,
     move
 }

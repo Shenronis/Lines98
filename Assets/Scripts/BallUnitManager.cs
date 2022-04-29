@@ -30,7 +30,19 @@ public class BallUnitManager : MonoBehaviour
         HUDManager.Instance.SetQueue(ballUnitQueue);
     }
 
-    public void SetBallUnitAt(Tile tile, BallUnitType? color=null, SpecialUnit? special=null, bool isQueueing=false)
+    public void ClearQueue()
+    {
+        ballUnitQueue.Clear();
+    }
+
+    /// <summary>
+    /// Set a ball unit or a queueing ball unit at a specific tile
+    /// </summary>
+    /// <param name="tile">Tile</param>
+    /// <param name="color"></param>
+    /// <param name="special"></param>
+    /// <param name="isQueueing">TRUE if set a queueing ball</param>
+    public void SetBallUnitAt(Tile tile, BallUnitType? color=null, BallUnitSpecial? special=null, bool isQueueing=false)
     {
         if (tile == null || color == null) return;
         tile.RefreshTile();
@@ -42,22 +54,31 @@ public class BallUnitManager : MonoBehaviour
         unit.Type = (BallUnitType)color;
 
         // Assign its special
-        if (special != null) unit.specialType = (SpecialUnit)special;
+        if (special != null) unit.specialType = (BallUnitSpecial)special;
 
         if (!isQueueing) tile.SetBallUnitPosition(unit);
         else tile.SetQueuedBallUnit(unit);
     }
 
-    public void SetBallUnitAt(Vector2 tilePos, BallUnitType? color=null, SpecialUnit? special=null, bool isQueueing=false)
+    /// <summary>
+    /// Wrapper for SetBallUnitAt(Tile tile, [...])
+    /// </summary>
+    public void SetBallUnitAt(Vector2 tilePos, BallUnitType? color=null, BallUnitSpecial? special=null, bool isQueueing=false)
     {
         var tile = GridManager.Instance.GetTileAtPos(tilePos);
         SetBallUnitAt(tile, color, special, isQueueing);
     }
 
+    /// <summary>
+    /// Spawn ball unit operation
+    /// if the ball queue is not empty, proceed to set ball onto tile(s)
+    /// else the ball queue is empty, directly spawn ball onto random tile(s)
+    /// </summary>
+    /// <param name="count">Number of unit to spawn</param>
     public void SpawnBallUnits(int count = 3)
     {        
-        if (GridManager.Instance.CountAvailableTiles() < count) {
-            count = GridManager.Instance.CountAvailableTiles();
+        if (GridManager.Instance.CountHasNotOccupiedTile() < count) {
+            count = GridManager.Instance.CountHasNotOccupiedTile();
         }
 
         for (int i = 0; i < count; i++)
@@ -69,35 +90,41 @@ public class BallUnitManager : MonoBehaviour
                     nextTile.SetQueueToBall();
                 }
             } else {
-                Tile randomTile = GridManager.Instance.GetRandomTilePosition();
+                Tile randomTile = GridManager.Instance.GetRandomSpawnableTilePosition();
                 if (randomTile == null) { return; }
 
                 Ball nextUnit = SpawnRandomBallUnit().GetComponent<Ball>();
                 randomTile.SetBallUnitPosition(nextUnit, shouldAnimate:false);
             }                                
-        }        
-
+        }
+        
         QueueBallUnits();                        
     }
     
+    /// <summary>
+    /// Queueing new ball unit into the queue
+    /// after that check for losing condition
+    /// in which case, moveable tile==1 else it will allow player to continue loop the game
+    /// </summary>
+    /// <param name="count">Number of unit to queue</param>
     public void QueueBallUnits(int count = 3)
     {        
-        if (GridManager.Instance.CountAvailableTiles() < count) {
-            count = GridManager.Instance.CountAvailableTiles();
+        if (GridManager.Instance.CountSpawnableTile() < count) {
+            count = GridManager.Instance.CountSpawnableTile();
         }
 
         for (int i = 0; i < count; i++)
         {
-            Tile randomTile = GridManager.Instance.GetRandomTilePosition();
+            Tile randomTile = GridManager.Instance.GetRandomSpawnableTilePosition();
             if (randomTile == null) { return; }
 
             Ball nextUnit = SpawnRandomBallUnit().GetComponent<Ball>();
             
             randomTile.SetQueuedBallUnit(nextUnit);
             ballUnitQueue.Enqueue(randomTile);
-        }
+        }        
 
-        if (GridManager.Instance.CountAvailableTiles() == 0) {
+        if (GridManager.Instance.CountMoveableTile() == 1) {
             GameManager.Instance.ChangeState(GameState.Lose);
             return;
         }
@@ -106,10 +133,15 @@ public class BallUnitManager : MonoBehaviour
         GameManager.Instance.ChangeState(GameState.PlayerTurn);                
     }
     
-    public GameObject SpawnRandomBallUnit(float chanceAsSpecial = 0.3f)
+    /// <summary>
+    /// Spawn a ball unit with random color and a chace to randomize it's special ability
+    /// </summary>
+    /// <param name="chanceAsSpecial">Chance to spawn a unit with special ability</param>
+    /// <returns>GameObject</returns>
+    public GameObject SpawnRandomBallUnit(float chanceAsSpecial = 0.8f)
     {
         BallUnitType baseColor = GetRandomBallUnit();
-        SpecialUnit special = GetRandomSpecial();
+        BallUnitSpecial special = GetRandomSpecial();
         GameObject obj = ObjectPooler.Instance.GetFromPool("Ball", shouldSpawn:true);
         Ball unit = obj.GetComponent<Ball>();        
 
@@ -119,12 +151,16 @@ public class BallUnitManager : MonoBehaviour
         // Chance for the ball to have special
         if (UnityEngine.Random.value <= chanceAsSpecial) {
             // Assign its special!
-            if (special != SpecialUnit.None) unit.specialType = special;
+            if (special != BallUnitSpecial.None) unit.specialType = special;
         }            
 
         return obj;
     }
 
+    /// <summary>
+    /// Return a random value from BallUnitType enum
+    /// </summary>
+    /// <returns>BallUnitType</returns>
     public BallUnitType GetRandomBallUnit()
     {                
         Type type = typeof(BallUnitType);
@@ -134,16 +170,25 @@ public class BallUnitManager : MonoBehaviour
         return ballUnitType;
     }
 
-    public SpecialUnit GetRandomSpecial()
-    {
-        Type type = typeof(SpecialUnit);
+    /// <summary>
+    /// Return a random value from BallUnitSpecial
+    /// </summary>
+    /// <returns>BallUnitSpecial</returns>
+    public BallUnitSpecial GetRandomSpecial()
+    {    
+        Type type = typeof(BallUnitSpecial);
         Array values = type.GetEnumValues();
         int index = UnityEngine.Random.Range(0, values.Length);
-        SpecialUnit special = (SpecialUnit)values.GetValue(index);
+        BallUnitSpecial special = (BallUnitSpecial)values.GetValue(index);
         return special;
     }
 
-    public Sprite GetSpecialUnitSprite(SpecialUnit special)
+    /// <summary>
+    /// Return Sprite of the special unit
+    /// </summary>
+    /// <param name="special">BallUnitSpecial</param>
+    /// <returns>Sprite</returns>
+    public Sprite GetSpecialUnitSprite(BallUnitSpecial special)
     {
         foreach(Sprite sprite in specialUnitSpriteMasks)
         {
